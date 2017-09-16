@@ -50,6 +50,8 @@ public class SpringTest {
     assertNotNull(mockSpan.tags().get(Tags.DB_STATEMENT.getKey()));
     assertEquals("hsqldb", mockSpan.tags().get(Tags.DB_TYPE.getKey()));
     assertEquals("SA", mockSpan.tags().get(Tags.DB_USER.getKey()));
+    assertEquals("myservice", mockSpan.tags().get(Tags.PEER_SERVICE.getKey()));
+    assertEquals("jdbc:hsqldb:mem:spring", mockSpan.tags().get("peer.address"));
     assertEquals(0, mockSpan.generatedErrors().size());
 
     assertNull(mockTracer.activeSpan());

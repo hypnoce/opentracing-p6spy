@@ -59,7 +59,7 @@ public class HibernateTest {
     List<MockSpan> finishedSpans = mockTracer.finishedSpans();
     assertEquals(8, finishedSpans.size());
 
-    checkSpans(finishedSpans, "myservice");
+    checkSpans(finishedSpans, "myservice", "jdbc:hsqldb:mem:jpa");
     assertNull(mockTracer.activeSpan());
   }
 
@@ -80,7 +80,7 @@ public class HibernateTest {
     List<MockSpan> finishedSpans = mockTracer.finishedSpans();
     assertEquals(8, finishedSpans.size());
 
-    checkSpans(finishedSpans, "myservice");
+    checkSpans(finishedSpans, "myservice", "jdbc:hsqldb:mem:hibernate");
     assertNull(mockTracer.activeSpan());
   }
 
@@ -99,17 +99,18 @@ public class HibernateTest {
     List<MockSpan> finishedSpans = mockTracer.finishedSpans();
     assertEquals(8, finishedSpans.size());
 
-    checkSpans(finishedSpans, "inurl");
+    checkSpans(finishedSpans, "inurl", "jdbc:hsqldb:mem:hibernate;tracingPeerService=inurl");
     assertNull(mockTracer.activeSpan());
   }
 
-  private void checkSpans(List<MockSpan> mockSpans, String peerService) {
+  private void checkSpans(List<MockSpan> mockSpans, String peerService, String peerAddress) {
     for (MockSpan mockSpan : mockSpans) {
       assertEquals(Tags.SPAN_KIND_CLIENT, mockSpan.tags().get(Tags.SPAN_KIND.getKey()));
       assertEquals("java-p6spy", mockSpan.tags().get(Tags.COMPONENT.getKey()));
       assertEquals("hsqldb", mockSpan.tags().get(Tags.DB_TYPE.getKey()));
       assertEquals("SA", mockSpan.tags().get(Tags.DB_USER.getKey()));
       assertEquals(peerService, mockSpan.tags().get(Tags.PEER_SERVICE.getKey()));
+      assertEquals(peerAddress, mockSpan.tags().get("peer.address"));
       assertNotNull(mockSpan.tags().get(Tags.DB_STATEMENT.getKey()));
       assertEquals(0, mockSpan.generatedErrors().size());
     }
