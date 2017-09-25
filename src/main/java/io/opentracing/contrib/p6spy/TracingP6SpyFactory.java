@@ -14,6 +14,6 @@ public class TracingP6SpyFactory implements P6Factory {
   }
 
   public JdbcEventListener getJdbcEventListener() {
-    return new TracingP6SpyListener(options.remoteServiceName());
+    return new TracingP6SpyListener(options.tracingPeerService());
   }
 }

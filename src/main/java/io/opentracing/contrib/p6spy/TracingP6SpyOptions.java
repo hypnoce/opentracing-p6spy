@@ -6,7 +6,6 @@ import java.util.Map;
 
 class TracingP6SpyOptions extends P6SpyOptions {
   private static final String PEER_SERVICE = "tracingPeerService";
-  static final String INCLUDE_PARAMETER_VALUES = "includeParameterValues";
 
   private final P6OptionsRepository optionsRepository;
 
@@ -19,15 +18,9 @@ class TracingP6SpyOptions extends P6SpyOptions {
     super.load(options);
 
     optionsRepository.set(String.class, PEER_SERVICE, options.get(PEER_SERVICE));
-    optionsRepository.set(Boolean.class, INCLUDE_PARAMETER_VALUES, options.get(INCLUDE_PARAMETER_VALUES));
   }
 
-  String remoteServiceName() {
+  String tracingPeerService() {
     return optionsRepository.get(String.class, PEER_SERVICE);
   }
-
-  //Boolean includeParameterValues() {
-  //  Boolean logParameterValues = optionsRepository.get(Boolean.class, INCLUDE_PARAMETER_VALUES);
-  //  return logParameterValues == null ? false : logParameterValues;
-  //}
 }
