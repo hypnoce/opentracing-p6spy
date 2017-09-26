@@ -46,3 +46,17 @@ jmxPrefix=authentication_service
 ``` 
 
 You can find more info on p6spy [here](https://github.com/p6spy/p6spy)
+
+## Tracing tags
+The following tags are added to traces :
+ 
+| Span tag name | Notes |
+|:--------------|:-------------------|
+| `span.kind` | `client` |
+| `component` | `java-p6spy` |
+| `peer.service` | if exists, the peer service name set in `spy.properties` or within the jdbc url using `tracingPeerService` |
+| `error` | `true` is any error occurred. `false` otherwise |
+| `db.type` | the authoritative part of the jdbc url (ex : `mysql` in `jdbc:mysql://localhost`) |
+| `db.statement` | the SQL query |
+| `db.instance` | the connection's catalog (can be a database name or a schema) |
+| `db.user` | if exists, the user name |
