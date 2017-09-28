@@ -36,6 +36,11 @@ jdbc:p6spy:mysql://localhost/tk_db?tracingPeerService=token_database
 ```
 This will override `spy.properties`.
 
+In case you only want to trace calls when there is an active span, use `traceWithActiveSpanOnly`:
+```
+jdbc:p6spy:mysql://localhost/tk_db?traceWithActiveSpanOnly=true
+``` 
+
 Beware that some JDBC drivers do not support adding unknown properties.
 
 Tips when using it in JavaEE application servers. If you happen to deploy many applications within the same application server, add the `jmxPrefix` to avoid jmx name conflict :

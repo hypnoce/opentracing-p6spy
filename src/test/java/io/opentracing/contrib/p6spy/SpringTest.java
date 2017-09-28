@@ -1,5 +1,6 @@
 package io.opentracing.contrib.p6spy;
 
+import io.opentracing.ActiveSpan;
 import io.opentracing.mock.MockSpan;
 import io.opentracing.mock.MockTracer;
 import io.opentracing.tag.Tags;
@@ -13,6 +14,8 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+import static io.opentracing.contrib.p6spy.SpanChecker.checkSameTrace;
+import static io.opentracing.contrib.p6spy.SpanChecker.checkTags;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -34,7 +37,7 @@ public class SpringTest {
 
   @Test
   public void test() throws SQLException {
-    BasicDataSource dataSource = getDataSource();
+    BasicDataSource dataSource = getDataSource("");
 
     JdbcTemplate jdbcTemplate = new JdbcTemplate(dataSource);
     jdbcTemplate.execute("CREATE TABLE employee (id INTEGER)");
@@ -43,23 +46,47 @@ public class SpringTest {
 
     List<MockSpan> finishedSpans = mockTracer.finishedSpans();
     assertEquals(1, finishedSpans.size());
-    MockSpan mockSpan = finishedSpans.get(0);
-
-    assertEquals(Tags.SPAN_KIND_CLIENT, mockSpan.tags().get(Tags.SPAN_KIND.getKey()));
-    assertEquals("java-p6spy", mockSpan.tags().get(Tags.COMPONENT.getKey()));
-    assertNotNull(mockSpan.tags().get(Tags.DB_STATEMENT.getKey()));
-    assertEquals("hsqldb", mockSpan.tags().get(Tags.DB_TYPE.getKey()));
-    assertEquals("SA", mockSpan.tags().get(Tags.DB_USER.getKey()));
-    assertEquals("myservice", mockSpan.tags().get(Tags.PEER_SERVICE.getKey()));
-    assertEquals("jdbc:hsqldb:mem:spring", mockSpan.tags().get("peer.address"));
-    assertEquals(0, mockSpan.generatedErrors().size());
+    checkTags(finishedSpans, "myservice", "jdbc:hsqldb:mem:spring");
+    checkSameTrace(finishedSpans);
 
     assertNull(mockTracer.activeSpan());
   }
 
-  private BasicDataSource getDataSource() {
+  @Test
+  public void testWithSpanOnlyNoParent() throws SQLException {
+    BasicDataSource dataSource = getDataSource(";traceWithActiveSpanOnly=true");
+
+    JdbcTemplate jdbcTemplate = new JdbcTemplate(dataSource);
+    jdbcTemplate.execute("CREATE TABLE skip_new_spans (id INTEGER)");
+
+    dataSource.close();
+
+    List<MockSpan> finishedSpans = mockTracer.finishedSpans();
+    assertEquals(0, finishedSpans.size());
+
+    assertNull(mockTracer.activeSpan());
+  }
+
+  @Test
+  public void testWithSpanOnlyWithParent() throws SQLException {
+    try (ActiveSpan activeSpan = mockTracer.buildSpan("parent").startActive()) {
+      BasicDataSource dataSource = getDataSource(";traceWithActiveSpanOnly=true");
+
+      JdbcTemplate jdbcTemplate = new JdbcTemplate(dataSource);
+      jdbcTemplate.execute("CREATE TABLE with_parent_skip (id INTEGER)");
+
+      dataSource.close();
+    }
+
+    List<MockSpan> finishedSpans = mockTracer.finishedSpans();
+    assertEquals(2, finishedSpans.size());
+    checkSameTrace(finishedSpans);
+    assertNull(mockTracer.activeSpan());
+  }
+
+  private BasicDataSource getDataSource(String options) {
     BasicDataSource dataSource = new BasicDataSource();
-    dataSource.setUrl("jdbc:p6spy:hsqldb:mem:spring");
+    dataSource.setUrl("jdbc:p6spy:hsqldb:mem:spring" + options);
     dataSource.setUsername("sa");
     dataSource.setPassword("");
     return dataSource;

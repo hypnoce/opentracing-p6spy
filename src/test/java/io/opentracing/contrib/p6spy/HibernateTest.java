@@ -1,8 +1,8 @@
 package io.opentracing.contrib.p6spy;
 
+import io.opentracing.ActiveSpan;
 import io.opentracing.mock.MockSpan;
 import io.opentracing.mock.MockTracer;
-import io.opentracing.tag.Tags;
 import io.opentracing.util.GlobalTracer;
 import io.opentracing.util.ThreadLocalActiveSpanSource;
 import java.util.List;
@@ -23,6 +23,8 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import static io.opentracing.contrib.p6spy.SpanChecker.checkSameTrace;
+import static io.opentracing.contrib.p6spy.SpanChecker.checkTags;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -58,8 +60,49 @@ public class HibernateTest {
 
     List<MockSpan> finishedSpans = mockTracer.finishedSpans();
     assertEquals(8, finishedSpans.size());
+    checkTags(finishedSpans, "myservice", "jdbc:hsqldb:mem:jpa");
+    assertNull(mockTracer.activeSpan());
+  }
 
-    checkSpans(finishedSpans, "myservice", "jdbc:hsqldb:mem:jpa");
+  @Test
+  public void jpaWithActiveSpanOnlyNoParent() {
+    EntityManagerFactory entityManagerFactory = Persistence.createEntityManagerFactory("jpa_active_span_only");
+
+    Employee employee = new Employee();
+    EntityManager entityManager = entityManagerFactory.createEntityManager();
+    entityManager.getTransaction().begin();
+    entityManager.persist(employee);
+    entityManager.getTransaction().commit();
+    entityManager.close();
+    entityManagerFactory.close();
+
+    assertNotNull(employee.id);
+
+    List<MockSpan> finishedSpans = mockTracer.finishedSpans();
+    assertEquals(0, finishedSpans.size());
+    assertNull(mockTracer.activeSpan());
+  }
+
+  @Test
+  public void jpaWithActiveSpanOnlyWithParent() {
+    try (ActiveSpan activeSpan = mockTracer.buildSpan("parent").startActive()) {
+      EntityManagerFactory entityManagerFactory =
+          Persistence.createEntityManagerFactory("jpa_active_span_only");
+
+      Employee employee = new Employee();
+      EntityManager entityManager = entityManagerFactory.createEntityManager();
+      entityManager.getTransaction().begin();
+      entityManager.persist(employee);
+      entityManager.getTransaction().commit();
+      entityManager.close();
+      entityManagerFactory.close();
+
+      assertNotNull(employee.id);
+    }
+
+    List<MockSpan> finishedSpans = mockTracer.finishedSpans();
+    assertEquals(9, finishedSpans.size());
+    checkSameTrace(finishedSpans);
     assertNull(mockTracer.activeSpan());
   }
 
@@ -79,8 +122,7 @@ public class HibernateTest {
 
     List<MockSpan> finishedSpans = mockTracer.finishedSpans();
     assertEquals(8, finishedSpans.size());
-
-    checkSpans(finishedSpans, "myservice", "jdbc:hsqldb:mem:hibernate");
+    checkTags(finishedSpans, "myservice", "jdbc:hsqldb:mem:hibernate");
     assertNull(mockTracer.activeSpan());
   }
 
@@ -99,21 +141,49 @@ public class HibernateTest {
     List<MockSpan> finishedSpans = mockTracer.finishedSpans();
     assertEquals(8, finishedSpans.size());
 
-    checkSpans(finishedSpans, "inurl", "jdbc:hsqldb:mem:hibernate;tracingPeerService=inurl");
+    checkTags(finishedSpans, "inurl", "jdbc:hsqldb:mem:hibernate;tracingPeerService=inurl");
+
     assertNull(mockTracer.activeSpan());
   }
 
-  private void checkSpans(List<MockSpan> mockSpans, String peerService, String peerAddress) {
-    for (MockSpan mockSpan : mockSpans) {
-      assertEquals(Tags.SPAN_KIND_CLIENT, mockSpan.tags().get(Tags.SPAN_KIND.getKey()));
-      assertEquals("java-p6spy", mockSpan.tags().get(Tags.COMPONENT.getKey()));
-      assertEquals("hsqldb", mockSpan.tags().get(Tags.DB_TYPE.getKey()));
-      assertEquals("SA", mockSpan.tags().get(Tags.DB_USER.getKey()));
-      assertEquals(peerService, mockSpan.tags().get(Tags.PEER_SERVICE.getKey()));
-      assertEquals(peerAddress, mockSpan.tags().get("peer.address"));
-      assertNotNull(mockSpan.tags().get(Tags.DB_STATEMENT.getKey()));
-      assertEquals(0, mockSpan.generatedErrors().size());
+  @Test
+  public void withActiveSpanOnlyNoParent() throws InterruptedException {
+    SessionFactory sessionFactory = createSessionFactory(";traceWithActiveSpanOnly=true");
+    Session session = sessionFactory.openSession();
+
+    Employee employee = new Employee();
+    session.beginTransaction();
+    session.save(employee);
+    session.getTransaction().commit();
+    session.close();
+    sessionFactory.close();
+
+    List<MockSpan> finishedSpans = mockTracer.finishedSpans();
+    assertEquals(0, finishedSpans.size());
+
+    assertNull(mockTracer.activeSpan());
+  }
+
+  @Test
+  public void withActiveSpanOnlyWithParent() throws InterruptedException {
+    try (ActiveSpan activeSpan = mockTracer.buildSpan("parent").startActive()) {
+      SessionFactory sessionFactory = createSessionFactory(";traceWithActiveSpanOnly=true");
+      Session session = sessionFactory.openSession();
+
+      Employee employee = new Employee();
+      session.beginTransaction();
+      session.save(employee);
+      session.getTransaction().commit();
+      session.close();
+      sessionFactory.close();
     }
+
+    List<MockSpan> finishedSpans = mockTracer.finishedSpans();
+    assertEquals(9, finishedSpans.size());
+    checkSameTrace(finishedSpans);
+
+    assertNull(mockTracer.activeSpan());
+
   }
 
   private SessionFactory createSessionFactory(String options) {
